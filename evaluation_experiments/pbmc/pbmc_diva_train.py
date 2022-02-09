@@ -139,10 +139,10 @@ if __name__ == "__main__":
 
 
     # set up for case where 10x is used for labeled and SM2 unlabeled
-    elif labeled_10x and not unlabeled_10x:
+    elif labeled_10x and not unlabeled_10x and args.unlab_exp_id != "NONE":
         # number of patients/domains/samples expected
         idx_range_lab = range(0, 11)
-        idx_range_unlab = range(0, 5)
+        idx_range_unlab = range(1, 6)
         n_tot_samples = 16
 
         # experiment id
@@ -159,17 +159,55 @@ if __name__ == "__main__":
                                     np.full(n_train, 6), np.full(n_train, 7),
                                     np.full(n_train, 8), np.full(n_train, 9),
                                     np.full(n_train, 10)], axis=0)
-        Label_full_sm2 = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
-                            np.full(n_train, 2), np.full(n_train, 3),
-                            np.full(n_train, 4)], axis=0)
-        Label_full = np.concatenate([Label_full, Label_full_sm2+11])
+        Label_full_sm2 = np.concatenate([np.full(n_train, 1), np.full(n_train, 2),
+                                        np.full(n_train, 3), np.full(n_train, 4),
+                                        np.full(n_train, 5)], axis=0)
+        Label_full = np.concatenate([Label_full, Label_full_sm2+10]) # +11
         label_full = to_categorical(Label_full)
+
+        Label_full_dim = np.full(n_train*11, 0)
+        Label_full_sm2_dim = np.full(n_train*5, 1)
+        Label_full_dim = np.concatenate([Label_full_dim, Label_full_sm2_dim])
+        label_full_dim = to_categorical(Label_full_dim)
+        #label_full = np.concatenate([label_full, label_full_dim], axis=1)
 
         # indexes for the training
         # 12-17 is unlabeled
         # 0 is held out
-        idx_train = np.where(np.logical_and(Label_full>0, Label_full<13))[0]
-        idx_unlab = np.where(Label_full>=13)[0] # 11
+        idx_train = np.where(np.logical_and(Label_full >= 1, Label_full <=10))[0]
+        idx_unlab = np.where(Label_full >=11)[0] 
+        idx_0 = np.where(Label_full==0)[0]
+
+    # set up for case where 10x AND sm2 is used for labeled
+    elif labeled_10x and not unlabeled_10x and args.unlab_exp_id == "NONE":
+        # number of patients/domains/samples expected
+        idx_range_lab = range(0, 12)
+        idx_range_unlab = range(1, 2)
+        n_tot_samples = 13
+
+        # experiment id
+        lab_file_name = args.exp_id
+        unlab_file_name = "pbmc_rep2_sm2"
+
+        # number of pseudobulks PER patient
+        n_train = 1000
+
+        ### create the domains label 
+        Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
+                                    np.full(n_train, 2), np.full(n_train, 3),
+                                    np.full(n_train, 4), np.full(n_train, 5),
+                                    np.full(n_train, 6), np.full(n_train, 7),
+                                    np.full(n_train, 8), np.full(n_train, 9),
+                                    np.full(n_train, 10), np.full(n_train, 11)], axis=0)
+        Label_full_sm2 = np.concatenate([np.full(n_train, 1)], axis=0)
+        Label_full = np.concatenate([Label_full, Label_full_sm2+11]) # +11
+        label_full = to_categorical(Label_full)
+
+        # indexes for the training
+        # 11 is unlabeled
+        # 0 is held out
+        idx_train = np.where(np.logical_and(Label_full >= 1, Label_full != 11))[0]
+        idx_unlab = np.where(Label_full ==11)[0] 
         idx_0 = np.where(Label_full==0)[0]
 
     else:
@@ -212,7 +250,6 @@ if __name__ == "__main__":
     # append together the labeled and unlabeled data
     X_full = np.concatenate((X_full, X_train_unlab), axis=0)
     Y_full = np.concatenate((Y_full, Y_train_unlab), axis=0)
-
 
     ## get the top variable genes
     X_colmean = X_full.mean(axis=0)

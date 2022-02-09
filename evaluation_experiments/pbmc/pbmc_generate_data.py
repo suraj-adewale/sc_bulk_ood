@@ -13,6 +13,7 @@ import pandas as pd
 import scipy as sp
 from scipy.sparse import coo_matrix
 from argparse import ArgumentParser
+from functools import reduce
 
 # Images, plots, display, and visualization
 import matplotlib.pyplot as plt
@@ -26,7 +27,6 @@ from pathlib import Path
 
 # set seeds
 from numpy.random import seed
-seed(1)
 
 
 def read_gse_input(cell_file, count_file, gene_file, meta_file, meta_tsne_file):
@@ -93,6 +93,45 @@ def filter_by_expr(pbmc1_a_dense, min_num_cells, gene_info):
     gene_pass = gene_info.iloc[gene_pass_idx]
     return (pbmc1_a_expr, gene_pass)
 
+def filter_cells_internal(expr_df, index_res, min_num_genes):
+
+    # how many cells have at least 500 genes expressed?
+    cell_type_num = expr_df[index_res]
+    cell_type_binary = np.where(cell_type_num>0,1,0)
+    cell_type_expr_cells = expr_df[cell_type_binary.sum(axis=1) > min_num_genes]
+
+    return cell_type_expr_cells
+
+
+def filter_cells(expr_df, index_res, cell_types):
+
+    expr_df = expr_df.loc[expr_df['CellType'].isin(cell_types)]
+
+    # first remove all cells with < 500 expressed genes
+    expr_filt_cells = filter_cells_internal(expr_df, index_res, 500)
+
+    # now remove all genes that aren't expressed in atleast -1 cells within a cell type
+    col_names = pd.Index(["CellType"] + index_res.tolist())
+    expr_filt_cells = expr_filt_cells[col_names]
+
+    return expr_filt_cells
+
+def scale_counts_per_cell(inter_genes, expr_df):
+    expr_num_df = expr_df[inter_genes]
+
+    expr_num_df = expr_num_df.transpose()
+    scaled_val = (expr_num_df*10000) / expr_num_df.sum(axis = 0)
+
+    scaled_val = scaled_val.transpose()
+    scaled_val['CellType'] = expr_df["CellType"]
+
+    col_names = pd.Index(["CellType"] + inter_genes.tolist())
+    expr_num_df_scaled = scaled_val[col_names]
+
+    return(expr_num_df_scaled)
+
+
+
 def join_metadata(cell_info, meta_info, pbmc1_a_expr, gene_pass):
     cell_meta_info = cell_info.merge(meta_info, left_on=["cell_names"], right_on=["Name"])
 
@@ -121,8 +160,17 @@ if __name__ == "__main__":
     parser.add_argument("-exp", "--exp_id",
                         dest="exp_id",
                         help="ID of GSE experiment to use")
-
+    parser.add_argument("-idx", "--idx",
+                        dest="idx", type=int,
+                        help="Index of simulation to produces")
+    parser.add_argument("-genes_only", "--genes_only",
+                        dest="genes_only", action='store_true', 
+                        help="Only write out the genes")
+    parser.set_defaults(genes_only=False)
     args = parser.parse_args()
+
+    seed(args.idx+len(args.exp_id))
+
 
     # these are pre-defined parameters that are inherent
     # to each experiment
@@ -164,7 +212,7 @@ if __name__ == "__main__":
 
     sm2_cell_types = ['CD14+ monocyte', 'Cytotoxic T cell',
                     'CD16+ monocyte', 'B cell',
-                    'CD4+ T cell', 'Megakaryocyte']
+                    'CD4+ T cell']
 
     #####################
     ### set the study ###
@@ -175,6 +223,7 @@ if __name__ == "__main__":
     meta_file = os.path.join(args.GSE_data_path, "GSE132044_meta_counts_new.txt")
     meta_tsne_file = os.path.join(args.GSE_data_path, "GSE132044_meta.txt")
     num_cells_vec = [2000, 3000, 1500, 4000, 3500, 2500, 200, 300, 100, 400, 3500, 2500]
+    num_cells_vec = [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250]
 
 
     if args.exp_id == "pbmc_rep1_sm2" :
@@ -183,12 +232,14 @@ if __name__ == "__main__":
         count_file = os.path.join(args.GSE_data_path, "GSE132044_counts_read.txt.gz")
         gene_file = os.path.join(args.GSE_data_path, "GSE132044_genes_read.txt")
         num_cells_vec = [200, 500, 1000, 800, 1400, 900]
+        num_cells_vec = [500, 1000, 1500, 2000, 2500, 3000]
     elif args.exp_id == "pbmc_rep2_sm2" :
         curr_study = pbmc2_smart_seq2_param
         cell_file = os.path.join(args.GSE_data_path, "GSE132044_cells_read_new.txt")
         count_file = os.path.join(args.GSE_data_path, "GSE132044_counts_read.txt.gz")
         gene_file = os.path.join(args.GSE_data_path, "GSE132044_genes_read.txt")
         num_cells_vec = [200, 500, 1000, 800, 1400, 900]
+        num_cells_vec = [500, 1000, 1500, 2000, 2500, 3000]
     elif args.exp_id == "pbmc_rep1_10xV2a":
         curr_study = pbmc1_10x_param
     elif args.exp_id == "pbmc_rep1_10xV2a_sm2_cells":
@@ -226,8 +277,12 @@ if __name__ == "__main__":
 
     pbmc1_a_expr, gene_pass = filter_by_expr(pbmc1_a_dense, min_num_cells, gene_info)
 
-    pbmc1_a_df, expr_col = join_metadata(cell_info, meta_info, pbmc1_a_expr)
+    pbmc1_a_df, expr_col = join_metadata(cell_info, meta_info, pbmc1_a_expr, gene_pass)
     print(pbmc1_a_df.head)
+
+    pbmc1_a_df = filter_cells(pbmc1_a_df, expr_col, sm2_cell_types)
+    pbmc1_a_df = scale_counts_per_cell(expr_col, pbmc1_a_df)
+
 
     # filter to sm2 cell types if needed
     if args.exp_id == "pbmc_rep1_10xV2a_sm2_cells" or args.exp_id == "pbmc_rep2_10xV2_sm2_cells":
@@ -241,12 +296,15 @@ if __name__ == "__main__":
     sig_out_path = Path(sig_out_file)
     pickle.dump( pbmc1_a_df, open( sig_out_path, "wb" ) )
 
+    if args.genes_only:
+        sys.exit()
+
     # simulate different number of cells
     num_samples = 1000
-    for idx in range(len(num_cells_vec)):
-        print(f"New Domain {idx}")
-        pbmc_rep1_pseudobulk_file = os.path.join(args.aug_data_path, f"{out_file_id}_pseudo_{idx}.pkl")
-        pbmc_rep1_prop_file = os.path.join(args.aug_data_path, f"{out_file_id}_prop_{idx}.pkl")
+    if args.idx != 9999:
+        print(f"New Domain {args.idx}")
+        pbmc_rep1_pseudobulk_file = os.path.join(args.aug_data_path, f"{out_file_id}_pseudo_{args.idx}.pkl")
+        pbmc_rep1_prop_file = os.path.join(args.aug_data_path, f"{out_file_id}_prop_{args.idx}.pkl")
 
         pseudobulk_path = Path(pbmc_rep1_pseudobulk_file)
         prop_path = Path(pbmc_rep1_prop_file)
@@ -254,7 +312,7 @@ if __name__ == "__main__":
         if not pseudobulk_path.is_file(): # skip if we already generated it
 
             # make the pseudobulks
-            num_cells = None #num_cells_vec[idx]
+            num_cells = num_cells_vec[args.idx] # None
             prop_df, pseudobulks_df = sc_preprocess.make_prop_and_sum(pbmc1_a_df, 
                                                         expr_col, 
                                                         num_samples, 
@@ -270,26 +328,26 @@ if __name__ == "__main__":
 
             if not np.all(np.isclose(prop_df.sum(axis=1), 1.)):
                 assert False, "Proportions do not sum to 1"
+    else:
+        # simulate same number of cells and cell-type proportions
+        # 9999 is a tag that its the "true" proportions
+        pbmc_rep1_pseudobulk_file = os.path.join(args.aug_data_path, f"{out_file_id}_pseudo_{args.idx}.pkl")
+        pbmc_rep1_prop_file = os.path.join(args.aug_data_path, f"{out_file_id}_prop_{args.idx}.pkl")
 
-    # simulate same number of cells and cell-type proportions
-    idx = 9999 # this is a tag that its the "true" proportions
-    pbmc_rep1_pseudobulk_file = os.path.join(args.aug_data_path, f"{out_file_id}_pseudo_{idx}.pkl")
-    pbmc_rep1_prop_file = os.path.join(args.aug_data_path, f"{out_file_id}_prop_{idx}.pkl")
+        pseudobulk_path = Path(pbmc_rep1_pseudobulk_file)
+        prop_path = Path(pbmc_rep1_prop_file)
 
-    pseudobulk_path = Path(pbmc_rep1_pseudobulk_file)
-    prop_path = Path(pbmc_rep1_prop_file)
+        if not pseudobulk_path.is_file(): # skip if we already generated it
+            # make the pseudobulks
+            prop_df, pseudobulks_df = sc_preprocess.make_prop_and_sum(pbmc1_a_df, 
+                                                        expr_col, 
+                                                        num_samples, 
+                                                        num_cells_expected,
+                                                        use_true_prop=True)
 
-    if not pseudobulk_path.is_file(): # skip if we already generated it
-        # make the pseudobulks
-        prop_df, pseudobulks_df = sc_preprocess.make_prop_and_sum(pbmc1_a_df, 
-                                                    expr_col, 
-                                                    num_samples, 
-                                                    num_cells_expected,
-                                                    use_true_prop=True)
+            # make the proportions instead of cell counts
+            prop_df = prop_df.div(prop_df.sum(axis=1), axis=0)
 
-        # make the proportions instead of cell counts
-        prop_df = prop_df.div(prop_df.sum(axis=1), axis=0)
-
-        pickle.dump( prop_df, open( prop_path, "wb" ) )
-        pickle.dump( pseudobulks_df, open( pseudobulk_path, "wb" ) )          
+            pickle.dump( prop_df, open( prop_path, "wb" ) )
+            pickle.dump( pseudobulks_df, open( pseudobulk_path, "wb" ) )          
 

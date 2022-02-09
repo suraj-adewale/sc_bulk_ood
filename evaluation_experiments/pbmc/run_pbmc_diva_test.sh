@@ -36,6 +36,16 @@ lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
 bsub -R "rusage[mem=2GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
 
 
+# across tech and biorep
+# unlabeled data is special code 
+train_id="pbmc_rep2_10xV2_sm2_cells"
+test_id="pbmc_rep1_sm2"
+unlab_exp_id="NONE"
+curr_py_script="${py_script} -train ${train_id} -test ${test_id} -unlab_exp ${unlab_exp_id}"
+lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
+bsub -R "rusage[mem=2GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
+
+
 # unlabeled data is different biorep
 train_id="pbmc_rep2_10xV2_sm2_cells"
 test_id="pbmc_rep1_sm2"

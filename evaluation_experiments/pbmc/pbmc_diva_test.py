@@ -97,22 +97,22 @@ if __name__ == "__main__":
 
 
     test_error = [mean_sqr_error(Y_pbmc2[idx], encodings[idx]) 
-                    for idx in range(0, X_pbmc2.shape[1])]
+                    for idx in range(0, X_pbmc2.shape[0])]
 
     print(f"MSqE mean: {np.mean(test_error)}, median: {np.median(test_error)}, max: {max(test_error)}")
 
     test_error = [spearmanr(Y_pbmc2[idx].astype(float), encodings[idx].astype(float))[0]
-                    for idx in range(0, X_pbmc2.shape[1])]
+                    for idx in range(0, X_pbmc2.shape[0])]
     print(f"Spearman mean: {np.mean(test_error)}, median: {np.median(test_error)}, max: {max(test_error)}")
 
     test_error = [pearsonr(Y_pbmc2[idx].astype(float), encodings[idx].astype(float))[0]
-                    for idx in range(0, X_pbmc2.shape[1])]
+                    for idx in range(0, X_pbmc2.shape[0])]
     print(f"Pearson mean: {np.mean(test_error)}, median: {np.median(test_error)}, max: {max(test_error)}")
 
     # write out the result
     res = pd.DataFrame(encodings)
     res.columns = Y_train.columns
 
-    res_file = os.path.join(args.res_data_path, f"train-{args.train_id}-test-{args.test_id}-DIVA.pkl")
+    res_file = os.path.join(args.res_data_path, f"train-{args.train_id}-test-{args.test_id}-unlab-{args.unlab_exp_id}-DIVA.pkl")
     res.to_pickle(res_file)
         

@@ -22,9 +22,18 @@ from pathlib import Path
 
 # cell type specific pseudobulk
 def get_cell_type_sum(in_df, cell_type_id, num_samples, expr_col):
+
+  # get the expression of the cells of interest
   cell_df = in_df[in_df.CellType.isin([cell_type_id])]
   cell_sample = cell_df[expr_col]
+
+  # now to the sampling
   cell_sample = cell_sample.sample(n=num_samples, replace=True)
+
+  # add  poisson noise
+  noise_mask = np.random.poisson(cell_sample+1)
+  cell_sample = cell_sample + noise_mask
+
   return cell_sample.sum(axis=0)
 
 # method to generate a proportion vector
@@ -65,10 +74,10 @@ def make_prop_and_sum(in_df, expr_col, num_samples, num_cells, use_true_prop):
   total_prop = pd.DataFrame(columns = in_df.CellType.unique())
 
   # sample specific noise
-  sample_noise = np.random.lognormal(0, 0.1, expr_col.shape[0])
+  sample_noise = np.random.lognormal(0, 1, expr_col.shape[0]) # 0.1
 
-  # cell specific noise
-  cell_noise = [np.random.lognormal(0, 0.1, expr_col.shape[0]) for i in range(len_vector)]
+  # cell specific noise, new noise for each sample
+  cell_noise = [np.random.lognormal(0, 0.1, expr_col.shape[0]) for i in range(len_vector)] # 0.1
 
   # iterate over all the samples we would like to make
   for samp_idx in range(num_samples):
@@ -90,7 +99,6 @@ def make_prop_and_sum(in_df, expr_col, num_samples, num_cells, use_true_prop):
 
     sum_over_cells = np.zeros(expr_col.shape[0])
 
-
     #iterate over all the cell types
     for cell_idx in range(len_vector):
       cell_type_id = in_df.CellType.unique()[cell_idx]
@@ -108,7 +116,12 @@ def make_prop_and_sum(in_df, expr_col, num_samples, num_cells, use_true_prop):
 
     # add sample noise
     if not use_true_prop:
+      # sample noise
       sum_over_cells = np.multiply(sum_over_cells, sample_noise)
+      # library size
+      sum_over_cells = sum_over_cells*np.random.lognormal(0, 0.1, 1)[0]
+      # random variability
+      sum_over_cells = sum_over_cells*np.random.lognormal(0, 0.1, expr_col.shape[0])
 
     total_expr = total_expr.append(sum_over_cells)
 
