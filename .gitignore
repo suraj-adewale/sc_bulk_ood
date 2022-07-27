@@ -1,6 +1,9 @@
-# /data
+/data
+/results
 /secrets
 /logs
+/.vscode
 libs
 *pyc
 *.lsf
+.ipynb_checkpoints/*

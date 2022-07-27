@@ -63,17 +63,28 @@ if __name__ == "__main__":
     encoder = K.models.load_model(f"{args.res_data_path}/{args.train_id}_{args.unlab_exp_id}_encoder")
 
     # read in the test / train data
-    _, Y_train, _, _ = sc_preprocess.read_diva_files(args.aug_data_path, 0, args.train_id)
-    X_pbmc2, Y_pbmc2, pbmc2_gene_df, _ = sc_preprocess.read_diva_files(args.aug_data_path, 0, args.test_id)
+    _, Y_train, _, _ = sc_preprocess.read_diva_files(args.aug_data_path, 6, args.train_id, use_test=False)
+    X_pbmc2, Y_pbmc2, pbmc2_gene_df, _ = sc_preprocess.read_diva_files(args.aug_data_path, 6, args.test_id, use_test=False)
     gene_file = os.path.join(args.res_data_path, f"train-{args.train_id}-{args.unlab_exp_id}-DIVA_features.pkl")
     gene_path = Path(gene_file)
     gene_df_train = pickle.load( open( gene_path, "rb" ) )
 
+    print(f"X shape: {X_pbmc2.shape}")
+    print(f"Y shape: {Y_pbmc2.shape}")
+    print(f"Y_train shape: {Y_train.shape}")
+
+    #X_pbmc2 = pd.concat([X_pbmc2, X_pbmc2, X_pbmc2, X_pbmc2, X_pbmc2])
+    #Y_pbmc2 = pd.concat([Y_pbmc2, Y_pbmc2, Y_pbmc2, Y_pbmc2, Y_pbmc2])
+
+    print(f"X shape: {X_pbmc2.shape}")
+    print(f"Y shape: {Y_pbmc2.shape}")
+    print(f"Y_train shape: {Y_train.shape}")
+
 
     # now we need to ensure the genes are in the same order
-    X_pbmc2.columns = pbmc2_gene_df["gene_ids"]
-    X_pbmc2 = X_pbmc2.reindex(columns=gene_df_train["gene_ids"], fill_value=0)
-    X_pbmc2 = X_pbmc2[gene_df_train["gene_ids"]]
+    X_pbmc2.columns = pbmc2_gene_df
+    X_pbmc2 = X_pbmc2.reindex(columns=gene_df_train, fill_value=0)
+    X_pbmc2 = X_pbmc2[gene_df_train]
 
     # we also need to ensure that the cell-types are in the same order
     ## need to add somthing to fill in missing columns

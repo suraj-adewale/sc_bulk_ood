@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Input, Dense, Lambda, Flatten, Softmax, ReLU
 from keras.layers.merge import concatenate as concat
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras import backend as K
-from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, KLDivergence
+from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, kl_divergence
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.activations import relu, linear
 from tensorflow.keras.utils import to_categorical, normalize
@@ -40,7 +40,7 @@ from pathlib import Path
 from tensorflow.python.framework.ops import disable_eager_execution
 disable_eager_execution()
 
-def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop, 
+def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop, Y_unknown_prop,
               label_unknown_prop, X_known_prop, Y_known_prop, 
               label_known_prop, epochs, batch_size):
     assert len(X_known_prop) % len(X_unknown_prop) == 0, \
@@ -68,21 +68,45 @@ def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop,
                                                     [X_known_prop[index_range], Y_known_prop[index_range], label_known_prop[index_range]])
             
             # Unlabeled
-            y_shuffle = np.identity(10, dtype=np.float32)
-            for idx in range(0, 49):
-                y_shuffle = np.vstack((y_shuffle, np.identity(10, dtype=np.float32)))
+            #y_shuffle = np.identity(8, dtype=np.float32)
+            #for idx in range(0, 49):
+            #    y_shuffle = np.vstack((y_shuffle, np.identity(8, dtype=np.float32)))
             #np.random.shuffle(y_shuffle)
-            y_shuffle = np.zeros((batch_size, 10))
-            y_shuffle[:,0] = 1
+            #y_shuffle = np.zeros((batch_size, 8))
+            #y_shuffle[:,0] = 1
             index_range =  unlabeled_index[i * batch_size:(i+1) * batch_size]
             loss += [unknown_prop_vae.train_on_batch(X_unknown_prop[index_range], 
-                                                        [X_unknown_prop[index_range], y_shuffle, label_unknown_prop[index_range]])]
-
-
+                                                        [X_unknown_prop[index_range], Y_unknown_prop[index_range], label_unknown_prop[index_range]])]
+            
             history.append(loss)
             
     
    
+    done = time.time()
+    elapsed = done - start
+    print("Elapsed: ", elapsed)
+    
+    return history
+
+def fit_model_supervised(known_prop_vae,
+              X_known_prop, Y_known_prop, 
+              label_known_prop, epochs, batch_size):
+    start = time.time()
+    history = []
+    
+    for epoch in range(epochs):
+        labeled_index = np.arange(len(X_known_prop))
+        np.random.shuffle(labeled_index)
+
+        batches = len(X_known_prop) // batch_size
+        for i in range(batches):
+            # Labeled
+            index_range =  labeled_index[i * batch_size:(i+1) * batch_size]
+            loss = known_prop_vae.train_on_batch(X_known_prop[index_range], 
+                                                    [X_known_prop[index_range], Y_known_prop[index_range], label_known_prop[index_range]])
+            
+            history.append(loss)
+
     done = time.time()
     elapsed = done - start
     print("Elapsed: ", elapsed)
@@ -101,6 +125,7 @@ def instantiate_model(n_x,
                     n_epoch = 100,
                     alpha_rot = 1000000,
                     alpha_prop = 100,
+                    alpha_prop_unk = 0,
                     beta_kl_slack = 10,
                     beta_kl_rot = 100,
                     beta_kl_prop = 10,
@@ -137,8 +162,8 @@ def instantiate_model(n_x,
     # now from the hidden layer, you get the mu and sigma for 
     # the latent space which is divided into three sections
     # slack, proportions, rotation (domain)
-    mu_slack = Dense(n_z, activation='linear', name = "mu_slack")(encoder_s)
-    l_sigma_slack = Dense(n_z, activation='linear', name = "sigma_slack")(encoder_s)
+    mu_slack = Dense(n_label_z, activation='linear', name = "mu_slack")(encoder_s)
+    l_sigma_slack = Dense(n_label_z, activation='linear', name = "sigma_slack")(encoder_s)
 
     mu_prop = Dense(n_label_z, activation='linear', name = "mu_prop")(encoder_p)
     l_sigma_prop = Dense(n_label_z, activation='linear', name = "sigma_prop")(encoder_p)
@@ -155,7 +180,7 @@ def instantiate_model(n_x,
 
 
     # Sampling latent space
-    z_slack = Lambda(sample_z, output_shape = (n_z, ), name="z_samp_slack")([mu_slack, l_sigma_slack, n_z])
+    z_slack = Lambda(sample_z, output_shape = (n_label_z, ), name="z_samp_slack")([mu_slack, l_sigma_slack, n_label_z])
     z_prop = Lambda(sample_z, output_shape = (n_label_z, ), name="z_samp_prop")([mu_prop, l_sigma_prop, n_label_z])
     z_rot = Lambda(sample_z, output_shape = (n_label_z, ), name="z_samp_rot")([mu_rot, l_sigma_rot, n_label_z])
 
@@ -168,9 +193,9 @@ def instantiate_model(n_x,
     decoder_hidden = Dense(decoder_dim, activation=activ, name = "decoder_h1")
 
     # final reconstruction
-    decoder_out = Dense(decoder_out_dim, activation='sigmoid', name = "decoder_out")
+    decoder_out = Dense(decoder_out_dim, activation=activ, name = "decoder_out")
 
-    d_in = Input(shape=(n_z+n_label_z+n_label_z,))
+    d_in = Input(shape=(n_label_z+n_label_z+n_label_z,))
     d_h1 = decoder_hidden(d_in)
     d_out = decoder_out(d_h1)
 
@@ -180,13 +205,14 @@ def instantiate_model(n_x,
 
     ###### Proportions classifier
     # this is the proportions we try to estimate
-    prop_h1 = Dense(20, activation='linear', name = "prop_h1")
-    prop_h2 = Dense(n_z, activation='linear', name = "prop_h2")
+    #prop_h1 = Dense(20, activation=activ, name = "prop_h1")
+    #prop_h1 = ReLU(name = "prop_h1")
+    prop_h2 = Dense(n_z, activation=linear, name = "prop_h2") ###
     prop_softmax = Softmax(name = "mu_prop_pred")
     decoder_sigma = Lambda(null_f, name = "l_sigma_prop_pred")
 
-    prop_1_out = prop_h1(z_prop)
-    prop_2_out = prop_h2(prop_1_out)
+    #prop_1_out = prop_h1(z_prop)
+    prop_2_out = prop_h2(mu_prop)
     prop_outputs = prop_softmax(prop_2_out)
     sigma_outputs_p = decoder_sigma(l_sigma_rot)
 
@@ -213,7 +239,7 @@ def instantiate_model(n_x,
         return recon + kl_prop + kl_rot + kl_slack
 
     def prop_loss_unknown(y_true, y_pred):
-      return K.sum(mean_absolute_error(prop_outputs, y_pred), axis=-1) * alpha_prop
+      return K.sum(mean_absolute_error(y_true, y_pred), axis=-1) * alpha_prop_unk ###
 
     def prop_loss(y_true, y_pred):
       return K.sum(mean_absolute_error(y_true, y_pred), axis=-1) * alpha_prop
@@ -227,7 +253,9 @@ def instantiate_model(n_x,
     unknown_prop_vae = Model(X, [outputs, prop_outputs, rotation_outputs])
 
     known_prop_vae.compile(optimizer=optim, loss=[vae_loss, prop_loss, class_loss, None])
+
     unknown_prop_vae.compile(optimizer=optim, loss=[vae_loss, prop_loss_unknown, class_loss])
+
 
 
     encoder = Model(X, [z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot])
@@ -235,3 +263,4 @@ def instantiate_model(n_x,
     decoder = Model(d_in, d_out)
 
     return (known_prop_vae, unknown_prop_vae, encoder, decoder)
+    #return (known_prop_vae, encoder, decoder)

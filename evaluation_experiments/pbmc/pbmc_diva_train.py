@@ -59,159 +59,53 @@ if __name__ == "__main__":
     #####. set up experiment specific variables
     ##################################################
 
-    ## set up flags for needed parameters
-    labeled_10x = False
-    unlabeled_10x = False
-
+    #if args.exp_id != "pbmc68k":
+    #    sys.exit("Error, exp_id not currently supported")
+            
     # number expected cell types
-    n_cell_types = 6
+    n_cell_types = 7
 
-    if args.exp_id == "pbmc_rep1_10xV2a_sm2_cells" or args.exp_id == "pbmc_rep2_10xV2_sm2_cells":
-        labeled_10x = True
-    if args.unlab_exp_id == "pbmc_rep1_10xV2a_sm2_cells" or args.unlab_exp_id == "pbmc_rep2_10xV2_sm2_cells":
-        unlabeled_10x = True
+    # number of patients/domains/samples expected
+    idx_range_lab = range(0, 10)
+    #idx_range_unlab = range(0, 10)
+    n_tot_samples = 10
 
-    # set up for special case where 10x is used for labeled and unlabeled, and same sample
-    if labeled_10x and unlabeled_10x and args.exp_id == args.unlab_exp_id:
-        # number of patients/domains/samples expected
-        idx_range_lab = range(0, 11)
-        idx_range_unlab = range(11, 12)
-        n_tot_samples = 12
+    # experiment id
+    lab_file_name = args.exp_id
+    #unlab_file_name = args.unlab_exp_id
 
+    # number of pseudobulks PER patient
+    n_train = 1000
 
-        # experiment id
-        lab_file_name = args.exp_id
-        unlab_file_name = args.unlab_exp_id
+    ### create the domains label 
+    Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
+                                np.full(n_train, 2), np.full(n_train, 3),
+                                np.full(n_train, 4), np.full(n_train, 5),
+                                np.full(n_train, 6), np.full(n_train, 7),
+                                np.full(n_train, 8), np.full(n_train, 9)], axis=0)
+    label_full = to_categorical(Label_full)
+    ### create the domains label 
+    Label_perturb = np.concatenate([np.full(n_train, 1), np.full(n_train, 0),
+                                np.full(n_train, 0), np.full(n_train, 0),
+                                np.full(n_train, 0), np.full(n_train, 1),
+                                np.full(n_train, 1), np.full(n_train, 1),
+                                np.full(n_train, 0), np.full(n_train, 0)], axis=0)
+    label_perturb = to_categorical(Label_perturb)
 
-        # number of pseudobulks PER patient
-        n_train = 1000
+    # indexes for the training
+    # 1-9 is labeled training
+    # 11-19 is unlabeled
+    # 10 is held out to test
+    # 0 is held out
+    #idx_train = np.where(np.logical_and(Label_full>0, Label_full!=3))[0]
+    #idx_unlab = np.where(Label_full == 3)[0]
+    #idx_0 = np.where(Label_full==0)[0]
 
-        ### create the domains label 
-        Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
-                                    np.full(n_train, 2), np.full(n_train, 3),
-                                    np.full(n_train, 4), np.full(n_train, 5),
-                                    np.full(n_train, 6), np.full(n_train, 7),
-                                    np.full(n_train, 8), np.full(n_train, 9),
-                                    np.full(n_train, 10), np.full(n_train, 11)], axis=0)
-        label_full = to_categorical(Label_full)
+    idx_train = np.where(np.logical_and(Label_full > 0, Label_full < 5))[0]
+    idx_unlab = np.where(Label_full > 5)[0]
+    idx_5 = np.where(Label_full == 5)[0]
+    idx_0 = np.where(Label_full==0)[0]
 
-        # since the unlabeled idx is the last block of the training data
-        # its idx in X_train and Y_train is the max labeled index +1
-        unlabeled_idx = max(idx_range_lab)+1
-
-        # indexes for the training, 3 and 0
-        # 3 is unlabeled
-        # 0 is held out
-        idx_train = np.where(np.logical_and(Label_full!=unlabeled_idx, Label_full!=0))[0]
-        idx_unlab = np.where(Label_full==unlabeled_idx)[0]
-        idx_0 = np.where(Label_full==0)[0]
-  
-    # set up for case where 10x is used for labeled and unlabeled, and different sample
-    elif labeled_10x and unlabeled_10x and args.exp_id != args.unlab_exp_id:
-        # number of patients/domains/samples expected
-        idx_range_lab = range(0, 12)
-        idx_range_unlab = range(0, 12)
-        n_tot_samples = 24
-
-        # experiment id
-        lab_file_name = args.exp_id
-        unlab_file_name = args.unlab_exp_id
-
-        # number of pseudobulks PER patient
-        n_train = 1000
-
-        ### create the domains label 
-        Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
-                                    np.full(n_train, 2), np.full(n_train, 3),
-                                    np.full(n_train, 4), np.full(n_train, 5),
-                                    np.full(n_train, 6), np.full(n_train, 7),
-                                    np.full(n_train, 8), np.full(n_train, 9),
-                                    np.full(n_train, 10), np.full(n_train, 11)], axis=0)
-        Label_full = np.concatenate([Label_full, Label_full+12])
-        label_full = to_categorical(Label_full)
-
-        # indexes for the training
-        # 12-23 is unlabeled
-        # 0 is held out
-        idx_train = np.where(np.logical_and(Label_full>0, Label_full<12))[0]
-        idx_unlab = np.where(Label_full>=12)[0]
-        idx_0 = np.where(Label_full==0)[0]
-
-
-    # set up for case where 10x is used for labeled and SM2 unlabeled
-    elif labeled_10x and not unlabeled_10x and args.unlab_exp_id != "NONE":
-        # number of patients/domains/samples expected
-        idx_range_lab = range(0, 11)
-        idx_range_unlab = range(1, 6)
-        n_tot_samples = 16
-
-        # experiment id
-        lab_file_name = args.exp_id
-        unlab_file_name = args.unlab_exp_id
-
-        # number of pseudobulks PER patient
-        n_train = 1000
-
-        ### create the domains label 
-        Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
-                                    np.full(n_train, 2), np.full(n_train, 3),
-                                    np.full(n_train, 4), np.full(n_train, 5),
-                                    np.full(n_train, 6), np.full(n_train, 7),
-                                    np.full(n_train, 8), np.full(n_train, 9),
-                                    np.full(n_train, 10)], axis=0)
-        Label_full_sm2 = np.concatenate([np.full(n_train, 1), np.full(n_train, 2),
-                                        np.full(n_train, 3), np.full(n_train, 4),
-                                        np.full(n_train, 5)], axis=0)
-        Label_full = np.concatenate([Label_full, Label_full_sm2+10]) # +11
-        label_full = to_categorical(Label_full)
-
-        Label_full_dim = np.full(n_train*11, 0)
-        Label_full_sm2_dim = np.full(n_train*5, 1)
-        Label_full_dim = np.concatenate([Label_full_dim, Label_full_sm2_dim])
-        label_full_dim = to_categorical(Label_full_dim)
-        #label_full = np.concatenate([label_full, label_full_dim], axis=1)
-
-        # indexes for the training
-        # 12-17 is unlabeled
-        # 0 is held out
-        idx_train = np.where(np.logical_and(Label_full >= 1, Label_full <=10))[0]
-        idx_unlab = np.where(Label_full >=11)[0] 
-        idx_0 = np.where(Label_full==0)[0]
-
-    # set up for case where 10x AND sm2 is used for labeled
-    elif labeled_10x and not unlabeled_10x and args.unlab_exp_id == "NONE":
-        # number of patients/domains/samples expected
-        idx_range_lab = range(0, 12)
-        idx_range_unlab = range(1, 2)
-        n_tot_samples = 13
-
-        # experiment id
-        lab_file_name = args.exp_id
-        unlab_file_name = "pbmc_rep2_sm2"
-
-        # number of pseudobulks PER patient
-        n_train = 1000
-
-        ### create the domains label 
-        Label_full = np.concatenate([np.full(n_train, 0), np.full(n_train, 1),
-                                    np.full(n_train, 2), np.full(n_train, 3),
-                                    np.full(n_train, 4), np.full(n_train, 5),
-                                    np.full(n_train, 6), np.full(n_train, 7),
-                                    np.full(n_train, 8), np.full(n_train, 9),
-                                    np.full(n_train, 10), np.full(n_train, 11)], axis=0)
-        Label_full_sm2 = np.concatenate([np.full(n_train, 1)], axis=0)
-        Label_full = np.concatenate([Label_full, Label_full_sm2+11]) # +11
-        label_full = to_categorical(Label_full)
-
-        # indexes for the training
-        # 11 is unlabeled
-        # 0 is held out
-        idx_train = np.where(np.logical_and(Label_full >= 1, Label_full != 11))[0]
-        idx_unlab = np.where(Label_full ==11)[0] 
-        idx_0 = np.where(Label_full==0)[0]
-
-    else:
-        sys.exit("Error, undefined training pairs")
 
     ##################################################
     #####. Design the experiment
@@ -219,6 +113,7 @@ if __name__ == "__main__":
 
     # read in the labeled data
     X_train, Y_train, gene_df = sc_preprocess.read_all_diva_files(args.aug_data_path, idx_range_lab, lab_file_name)
+    X_train.columns = gene_df
 
     # only get genes that are available in both testing and training
     common_genes_file = os.path.join(args.aug_data_path, "intersection_genes.pkl")
@@ -227,42 +122,45 @@ if __name__ == "__main__":
     X_train = X_train[common_genes]
     X_train.head()
 
-    gene_df = gene_df.loc[gene_df['gene_ids'].isin(common_genes)]
+    gene_df = gene_df.loc[gene_df.isin(common_genes)]
 
 
     # read in the unlabeled data
-    X_train_unlab, Y_train_unlab, gene_df_unlab = sc_preprocess.read_all_diva_files(args.aug_data_path, idx_range_unlab, unlab_file_name)
+    #X_train_unlab, Y_train_unlab, gene_df_unlab = sc_preprocess.read_all_diva_files(args.aug_data_path, idx_range_unlab, unlab_file_name)
 
     # now we need to ensure the genes are in the same order
-    X_train_unlab.columns = gene_df_unlab["gene_ids"]
-    X_train_unlab = X_train_unlab.reindex(columns=gene_df["gene_ids"], fill_value=0)
+    #X_train_unlab.columns = gene_df_unlab
+    #X_train_unlab = X_train_unlab.reindex(columns=gene_df, fill_value=0)
 
     # we also need to ensure that the cell-types are in the same order
-    Y_train_unlab = Y_train_unlab.reindex(columns=Y_train.columns, fill_value=0)
+    #Y_train_unlab = Y_train_unlab.reindex(columns=Y_train.columns, fill_value=0)
 
     # convert to data matrices
     X_full = X_train.to_numpy()
     Y_full = Y_train.to_numpy()
-    X_train_unlab = X_train_unlab.to_numpy()
-    Y_train_unlab = Y_train_unlab.to_numpy()
+    #X_train_unlab = X_train_unlab.to_numpy()
+    #Y_train_unlab = Y_train_unlab.to_numpy()
 
 
     # append together the labeled and unlabeled data
-    X_full = np.concatenate((X_full, X_train_unlab), axis=0)
-    Y_full = np.concatenate((Y_full, Y_train_unlab), axis=0)
+    #X_full = np.concatenate((X_full, X_train_unlab), axis=0)
+    #Y_full = np.concatenate((Y_full, Y_train_unlab), axis=0)
 
     ## get the top variable genes
     X_colmean = X_full.mean(axis=0)
     X_colvar = X_full.var(axis=0)
-    X_CoV = np.array(np.divide(X_colvar, X_colmean))
+    X_CoV = np.array(np.divide(X_colvar, X_colmean+0.001))
     idx_top = np.argpartition(X_CoV, -args.num_genes)[-args.num_genes:]
-    X_full = X_full[:,idx_top]
     gene_df = gene_df.iloc[idx_top]
+    X_full = X_train.loc[:,gene_df]
+    X_full = X_full.to_numpy()
 
     ## normalize within sample
     X_full = scale(X_full, axis=1)
                 
     print(X_full.shape)
+
+    print(np.where(X_colmean == 0)[0].tolist())
 
 
 
@@ -288,10 +186,10 @@ if __name__ == "__main__":
     ##################################################
 
     batch_size = 500
-    n_epoch = 100 # 500
+    n_epoch = 1000 # 100 
 
     alpha_rot = 1000000
-    alpha_prop = 100 
+    alpha_prop = 100
 
     beta_kl_slack = 10
     beta_kl_rot = 100
@@ -317,7 +215,7 @@ if __name__ == "__main__":
 
 
     ##################################################
-    #####. Train Model
+    #####. Train Model first pass
     ##################################################
     known_prop_vae, unknown_prop_vae, encoder, decoder = diva.instantiate_model(n_x=n_x,
                                                             n_y=n_y,
@@ -331,6 +229,7 @@ if __name__ == "__main__":
                                                             n_epoch = n_epoch,
                                                             alpha_rot = alpha_rot,
                                                             alpha_prop = alpha_prop,
+                                                            alpha_prop_unk = alpha_prop,
                                                             beta_kl_slack = beta_kl_slack,
                                                             beta_kl_rot = beta_kl_rot,
                                                             beta_kl_prop = beta_kl_prop,
@@ -338,6 +237,7 @@ if __name__ == "__main__":
                                                             optim = optim)
 
     X_unkp = np.asarray(X_unkp).astype('float32')
+    y_unkp = np.asarray(y_unkp).astype('float32')
     label_unkp = np.asarray(label_unkp).astype('float32')
     X_kp = np.asarray(X_kp).astype('float32')
     y_kp = np.asarray(y_kp).astype('float32')
@@ -346,6 +246,64 @@ if __name__ == "__main__":
     loss_history = diva.fit_model(known_prop_vae, 
                                     unknown_prop_vae,
                                     X_unkp,
+                                    y_unkp,
+                                    label_unkp,
+                                    X_kp, 
+                                    y_kp,
+                                    label_kp, 
+                                    epochs=n_epoch,
+                                    batch_size=batch_size)
+
+
+    ##################################################
+    #####. Train Model second pass
+    ##################################################
+
+    idx_second_run = idx_unlab
+    X_unkp = X_full[idx_second_run,]
+    label_unkp = label_full[idx_second_run,]
+
+    z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot = encoder.predict(X_unkp, batch_size=batch_size)
+    y_unkp_rand = prop_outputs
+
+    X_kp = X_full[idx_train,]
+    label_kp = label_full[idx_train,]
+    y_kp = Y_full[idx_train,]
+
+
+
+    known_prop_vae, unknown_prop_vae, encoder, decoder = diva.instantiate_model(n_x=n_x,
+                                                            n_y=n_y,
+                                                            n_label=n_label,
+                                                            n_z=n_z,
+                                                            decoder_out_dim = decoder_out_dim,
+                                                            n_label_z = n_label_z,
+                                                            encoder_dim = encoder_dim,
+                                                            decoder_dim = decoder_dim,
+                                                            batch_size = batch_size,
+                                                            n_epoch = n_epoch,
+                                                            alpha_rot = alpha_rot,
+                                                            alpha_prop = alpha_prop,
+                                                            alpha_prop_unk = alpha_prop*0.1,
+                                                            beta_kl_slack = beta_kl_slack,
+                                                            beta_kl_rot = beta_kl_rot,
+                                                            beta_kl_prop = beta_kl_prop,
+                                                            activ = activ,
+                                                            optim = optim)
+
+
+    X_unkp = np.asarray(X_unkp).astype('float32')
+    y_unkp_rand = np.asarray(y_unkp_rand).astype('float32')
+    label_unkp = np.asarray(label_unkp).astype('float32')
+    X_kp = np.asarray(X_kp).astype('float32')
+    y_kp = np.asarray(y_kp).astype('float32')
+    label_kp = np.asarray(label_kp).astype('float32')
+
+
+    loss_history = diva.fit_model(known_prop_vae, 
+                                    unknown_prop_vae,
+                                    X_unkp,
+                                    y_unkp_rand,
                                     label_unkp,
                                     X_kp, 
                                     y_kp,

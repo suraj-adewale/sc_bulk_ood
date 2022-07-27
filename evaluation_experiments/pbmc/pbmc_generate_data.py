@@ -12,14 +12,18 @@ import os
 import pandas as pd
 import scipy as sp
 from scipy.sparse import coo_matrix
+import collections
+import scanpy as sc
 from argparse import ArgumentParser
-from functools import reduce
+
 
 # Images, plots, display, and visualization
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from sklearn.manifold import TSNE
+import sklearn as sk
+
 
 import pickle
 import gzip
@@ -166,6 +170,9 @@ if __name__ == "__main__":
     parser.add_argument("-genes_only", "--genes_only",
                         dest="genes_only", action='store_true', 
                         help="Only write out the genes")
+    parser.add_argument("-scpred_path", "--scpred_path",
+                        dest="scpred_path", 
+                        help="Path the cell type labels from scpred")
     parser.set_defaults(genes_only=False)
     args = parser.parse_args()
 
@@ -175,71 +182,38 @@ if __name__ == "__main__":
     # these are pre-defined parameters that are inherent
     # to each experiment
     pbmc1_smart_seq2_param = pd.DataFrame({"Method":'Smart-seq2', 
-                        "Experiment":'pbmc1', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[253],
+                        "Experiment":'pbmc1',
                         "file_id":'pbmc_rep1_sm2'})
 
     pbmc2_smart_seq2_param = pd.DataFrame({"Method":'Smart-seq2', 
-                        "Experiment":'pbmc2', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[273],
+                        "Experiment":'pbmc2',
                         "file_id":'pbmc_rep2_sm2'})
 
     pbmc1_10x_param = pd.DataFrame({"Method":'10x Chromium V2 A', 
-                        "Experiment":'pbmc1', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[3222],
+                        "Experiment":'pbmc1',
                         "file_id":'pbmc_rep1_10xV2a'})
 
     pbmc1_10x_sm2_cells_param = pd.DataFrame({"Method":'10x Chromium V2 A', 
-                        "Experiment":'pbmc1', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[3222],
+                        "Experiment":'pbmc1',
                         "file_id":'pbmc_rep1_10xV2a_sm2_cells'})
 
     pbmc2_10x_param = pd.DataFrame({"Method":'10x Chromium V2', 
-                        "Experiment":'pbmc2', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[3362],
+                        "Experiment":'pbmc2',
                         "file_id":'pbmc_rep2_10xV2'})
 
     pbmc2_10x_sm2_cells_param = pd.DataFrame({"Method":'10x Chromium V2', 
-                        "Experiment":'pbmc2', 
-                        "min_num_cells":[-1], 
-                        "num_cells":[3362],
+                        "Experiment":'pbmc2',
                         "file_id":'pbmc_rep2_10xV2_sm2_cells'})
-
-    sm2_cell_types = ['CD14+ monocyte', 'Cytotoxic T cell',
-                    'CD16+ monocyte', 'B cell',
-                    'CD4+ T cell']
 
     #####################
     ### set the study ###
     #####################
-    cell_file = os.path.join(args.GSE_data_path, "GSE132044_cells_umi_new.txt")
-    count_file = os.path.join(args.GSE_data_path, "GSE132044_counts_umi.txt.gz")
-    gene_file = os.path.join(args.GSE_data_path, "GSE132044_genes_umi.txt")
-    meta_file = os.path.join(args.GSE_data_path, "GSE132044_meta_counts_new.txt")
-    meta_tsne_file = os.path.join(args.GSE_data_path, "GSE132044_meta.txt")
-    num_cells_vec = [2000, 3000, 1500, 4000, 3500, 2500, 200, 300, 100, 400, 3500, 2500]
-    num_cells_vec = [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250]
 
 
     if args.exp_id == "pbmc_rep1_sm2" :
         curr_study = pbmc1_smart_seq2_param
-        cell_file = os.path.join(args.GSE_data_path, "GSE132044_cells_read_new.txt")
-        count_file = os.path.join(args.GSE_data_path, "GSE132044_counts_read.txt.gz")
-        gene_file = os.path.join(args.GSE_data_path, "GSE132044_genes_read.txt")
-        num_cells_vec = [200, 500, 1000, 800, 1400, 900]
-        num_cells_vec = [500, 1000, 1500, 2000, 2500, 3000]
     elif args.exp_id == "pbmc_rep2_sm2" :
         curr_study = pbmc2_smart_seq2_param
-        cell_file = os.path.join(args.GSE_data_path, "GSE132044_cells_read_new.txt")
-        count_file = os.path.join(args.GSE_data_path, "GSE132044_counts_read.txt.gz")
-        gene_file = os.path.join(args.GSE_data_path, "GSE132044_genes_read.txt")
-        num_cells_vec = [200, 500, 1000, 800, 1400, 900]
-        num_cells_vec = [500, 1000, 1500, 2000, 2500, 3000]
     elif args.exp_id == "pbmc_rep1_10xV2a":
         curr_study = pbmc1_10x_param
     elif args.exp_id == "pbmc_rep1_10xV2a_sm2_cells":
@@ -253,40 +227,61 @@ if __name__ == "__main__":
 
 
     # set the study specific parameters
-    min_num_cells = pd.to_numeric(curr_study["min_num_cells"][0])
-    method_keep = curr_study["Method"].tolist()
+    method_str = curr_study["Method"].tolist()
     experiment_keep = curr_study["Experiment"].tolist()
-    num_cells_expected = pd.to_numeric(curr_study["num_cells"][0])
     out_file_id = curr_study["file_id"][0]
+
     gene_out_file = os.path.join(args.aug_data_path, f"{out_file_id}_genes.pkl")
     sig_out_file = os.path.join(args.aug_data_path, f"{out_file_id}_sig.pkl")
+
+    barcode_file = os.path.join(args.GSE_data_path, "barcodes.tsv")
+    meta_file = os.path.join(args.scpred_path, f"{out_file_id}.tsv")
+
+    num_cells_vec = [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250]
 
     ########################
     ### generate samples ###
     ########################
     # now generate the augmented samples
-    cell_info, count_matr, gene_info, meta_info = read_gse_input(cell_file, 
-                                                                count_file, 
-                                                                gene_file, 
-                                                                meta_file, 
-                                                                meta_tsne_file)
+    # read in the data
 
-    pbmc1_a_dense = format_cell_reads_info(meta_info, cell_info, count_matr, 
-                                            num_cells_expected, method_keep, 
-                                            experiment_keep)
+    adata = sc.read_10x_mtx(
+        args.GSE_data_path,                      # the directory with the `.mtx` file
+        var_names='gene_symbols',                # use gene symbols for the variable names (variables-axis index)
+        cache=True)                              # write a cache file for faster subsequent reading
 
-    pbmc1_a_expr, gene_pass = filter_by_expr(pbmc1_a_dense, min_num_cells, gene_info)
-
-    pbmc1_a_df, expr_col = join_metadata(cell_info, meta_info, pbmc1_a_expr, gene_pass)
-    print(pbmc1_a_df.head)
-
-    pbmc1_a_df = filter_cells(pbmc1_a_df, expr_col, sm2_cell_types)
-    pbmc1_a_df = scale_counts_per_cell(expr_col, pbmc1_a_df)
+    adata.var_names_make_unique()  # this is unnecessary if using `var_names='gene_ids'` in `sc.read_10x_mtx`
 
 
-    # filter to sm2 cell types if needed
-    if args.exp_id == "pbmc_rep1_10xV2a_sm2_cells" or args.exp_id == "pbmc_rep2_10xV2_sm2_cells":
-        pbmc1_a_df = pbmc1_a_df[pbmc1_a_df['CellType'].isin(sm2_cell_types)]
+    # add metadata
+    meta_data = pd.read_csv(meta_file, sep="\t", index_col='code')
+    barcodes = pd.read_csv(barcode_file, header=None, names=['code'])
+    meta_df = barcodes.join(other=meta_data, on=['code'], how='left', sort=False)
+
+    adata.obs['CellType'] = meta_df['CellType'].tolist()
+    adata.obs['scpred_CellType'] = meta_df['scpred_prediction'].tolist()
+    adata.obs['Experiment'] = meta_df['Experiment'].tolist()
+    adata.obs['Method'] = meta_df['Method'].tolist()
+
+    # filter it for only our method and experiment
+    adata = adata[adata.obs["Experiment"] == experiment_keep, :]
+    adata = adata[adata.obs["Method"] == method_str, :]
+
+    # filter out cells with less than 200 genes and genes expressed in less than 3 cells
+    sc.pp.filter_cells(adata, min_genes=200)
+    sc.pp.filter_genes(adata, min_cells=3)
+
+    # remove genes with high mitochondrial content
+    adata.var['mt'] = adata.var_names.str.startswith('MT-')  # annotate the group of mitochondrial genes as 'mt'
+    sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
+
+    # slice the data based on the plots from above
+    # remove cells with more than 3500 genes
+    # remove cells with more than 10% MTgenes
+    adata = adata[adata.obs.n_genes_by_counts < 3500, :]
+    adata = adata[adata.obs.pct_counts_mt < 10, :]
+
+
 
     # write out the gene ids
     gene_out_path = Path(gene_out_file)

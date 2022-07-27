@@ -11,6 +11,32 @@ py_script="python pbmc_diva_test.py -res ${res_path} -aug ${aug_data_path}"
 # now run this for all our experimental desires
 
 # just noise
+train_id="pbmc3k"
+test_id="pbmc3k"
+unlab_exp_id="pbmc3k"
+curr_py_script="${py_script} -train ${train_id} -test ${test_id} -unlab_exp ${unlab_exp_id}"
+lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
+bsub -R "rusage[mem=10GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
+
+# just noise
+train_id="pbmc6k"
+test_id="pbmc_rep2_10xV2"
+unlab_exp_id="pbmc6k"
+curr_py_script="${py_script} -train ${train_id} -test ${test_id} -unlab_exp ${unlab_exp_id}"
+lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
+bsub -R "rusage[mem=10GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
+
+# just noise
+train_id="pbmc6k"
+test_id="pbmc6k"
+unlab_exp_id="pbmc6k"
+curr_py_script="${py_script} -train ${train_id} -test ${test_id} -unlab_exp ${unlab_exp_id}"
+lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
+bsub -R "rusage[mem=10GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
+
+
+
+# just noise
 train_id="pbmc_rep2_10xV2_sm2_cells"
 test_id="pbmc_rep2_10xV2_sm2_cells"
 unlab_exp_id="pbmc_rep2_10xV2_sm2_cells"

@@ -9,11 +9,13 @@ read_and_format <- function(in_file){
     sc_matr = data.frame(sc_matr)
     
     # format the column names
-    colnames(sc_matr)[1] = "full_gene_ids"
-    sc_matr = separate(data = sc_matr, col = full_gene_ids, into = c("ensembl", "hgnc"), sep="_")
+    colnames(sc_matr)[1] = "ensembl"
+    #colnames(sc_matr)[1] = "full_gene_ids"
+    #sc_matr = separate(data = sc_matr, col = full_gene_ids, into = c("ensembl", "hgnc"), sep="_")
     
     # take all value columns
-    count_matr = sc_matr[,3:ncol(sc_matr)]
+    count_matr = sc_matr[,2:ncol(sc_matr)]
+    #count_matr = sc_matr[,3:ncol(sc_matr)]
     
     # format the data for BayesPrism
     ens_gene_ids = sc_matr$ensembl
