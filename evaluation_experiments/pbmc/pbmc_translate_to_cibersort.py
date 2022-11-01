@@ -3,6 +3,7 @@
 # import out preprocessing code
 import sys
 sys.path.insert(1, '../../')
+sys.path.insert(1, '../')
 from sc_preprocessing import sc_preprocess
 
 # general imports

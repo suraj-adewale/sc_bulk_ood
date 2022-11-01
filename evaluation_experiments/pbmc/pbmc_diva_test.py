@@ -1,6 +1,7 @@
 # import the custom code
 import sys
 sys.path.insert(1, '../../')
+sys.path.insert(1, '../')
 from sc_preprocessing import sc_preprocess
 
 # general imports
@@ -69,6 +70,7 @@ if __name__ == "__main__":
     gene_path = Path(gene_file)
     gene_df_train = pickle.load( open( gene_path, "rb" ) )
 
+    print(f"Encoder files: {args.res_data_path}/{args.train_id}_{args.unlab_exp_id}_encoder")
     print(f"X shape: {X_pbmc2.shape}")
     print(f"Y shape: {Y_pbmc2.shape}")
     print(f"Y_train shape: {Y_train.shape}")
@@ -101,7 +103,8 @@ if __name__ == "__main__":
 
     # now run it
     batch_size = 500
-    z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot = encoder.predict(X_pbmc2, batch_size=batch_size)
+
+    z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot, z_drug, mu_drug, l_sigma_drug = encoder.predict(X_pbmc2, batch_size=batch_size)
     z_test = prop_outputs
     encodings = np.asarray(z_test)
     #encodings = encodings.reshape(X_pbmc2.shape[0], n_z)

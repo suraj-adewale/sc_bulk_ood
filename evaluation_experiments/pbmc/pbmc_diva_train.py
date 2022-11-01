@@ -1,6 +1,7 @@
 # import the VAE code
 import sys
 sys.path.insert(1, '../../')
+sys.path.insert(1, '../')
 from diva import diva
 from sc_preprocessing import sc_preprocess
 
@@ -70,6 +71,9 @@ if __name__ == "__main__":
     #idx_range_unlab = range(0, 10)
     n_tot_samples = 10
 
+    # number of drugs (one-hot encoded)
+    n_drugs = 2
+
     # experiment id
     lab_file_name = args.exp_id
     #unlab_file_name = args.unlab_exp_id
@@ -84,13 +88,13 @@ if __name__ == "__main__":
                                 np.full(n_train, 6), np.full(n_train, 7),
                                 np.full(n_train, 8), np.full(n_train, 9)], axis=0)
     label_full = to_categorical(Label_full)
-    ### create the domains label 
-    Label_perturb = np.concatenate([np.full(n_train, 1), np.full(n_train, 0),
+    ### create the drugs label 
+    Drug_full = np.concatenate([np.full(n_train, 1), np.full(n_train, 0),
                                 np.full(n_train, 0), np.full(n_train, 0),
                                 np.full(n_train, 0), np.full(n_train, 1),
                                 np.full(n_train, 1), np.full(n_train, 1),
                                 np.full(n_train, 0), np.full(n_train, 0)], axis=0)
-    label_perturb = to_categorical(Label_perturb)
+    drug_full = to_categorical(Drug_full)
 
     # indexes for the training
     # 1-9 is labeled training
@@ -103,6 +107,7 @@ if __name__ == "__main__":
 
     idx_train = np.where(np.logical_and(Label_full > 0, Label_full < 5))[0]
     idx_unlab = np.where(Label_full > 5)[0]
+    idx_drug = np.where(Drug_full > 0)[0]
     idx_5 = np.where(Label_full == 5)[0]
     idx_0 = np.where(Label_full==0)[0]
 
@@ -167,17 +172,20 @@ if __name__ == "__main__":
     # for unknown proportions; i.e. 3 
     X_unkp = X_full[idx_unlab,]
     label_unkp = label_full[idx_unlab,]
+    drug_unkp = drug_full[idx_unlab,]
     y_unkp = Y_full[idx_unlab,]
 
     # for known proportions
     X_kp = X_full[idx_train,]
     label_kp = label_full[idx_train,]
+    drug_kp = drug_full[idx_train,]
     y_kp = Y_full[idx_train,]
 
 
     # test
     X_0 = X_full[idx_0,]
     label_0 = label_full[idx_0,]
+    drug_0 = drug_full[idx_0,]
     y_0 = Y_full[idx_0,]
 
 
@@ -186,19 +194,22 @@ if __name__ == "__main__":
     ##################################################
 
     batch_size = 500
-    n_epoch = 1000 # 100 
+    n_epoch = 100 # 100 
 
     alpha_rot = 1000000
     alpha_prop = 100
+    alpha_drug = 1000000
 
     beta_kl_slack = 10
     beta_kl_rot = 100
     beta_kl_prop = 10
+    beta_kl_drug = 1000
 
 
     n_x = X_full.shape[1]
     n_y = Y_full.shape[1]
     n_label = n_tot_samples  # 6 "patients" 1 sample augmented into 6 distinct versions
+    n_drugs = n_drugs  # number of drugs one-hot encoded
     n_label_z = 64  # 64 dimensional representation of rotation
 
 
@@ -211,7 +222,7 @@ if __name__ == "__main__":
     activ = 'relu'
     optim = Adam(learning_rate=0.001)
 
-    print(f"length of X {n_x} and length of y {n_y} and n_label {n_label}")
+    print(f"length of X {n_x} and length of y {n_y} n_label {n_label} and n_drugs {n_drugs}")
 
 
     ##################################################
@@ -220,6 +231,7 @@ if __name__ == "__main__":
     known_prop_vae, unknown_prop_vae, encoder, decoder = diva.instantiate_model(n_x=n_x,
                                                             n_y=n_y,
                                                             n_label=n_label,
+                                                            n_drugs=n_drugs,
                                                             n_z=n_z,
                                                             decoder_out_dim = decoder_out_dim,
                                                             n_label_z = n_label_z,
@@ -228,32 +240,47 @@ if __name__ == "__main__":
                                                             batch_size = batch_size,
                                                             n_epoch = n_epoch,
                                                             alpha_rot = alpha_rot,
+                                                            alpha_drug = alpha_drug,
                                                             alpha_prop = alpha_prop,
-                                                            alpha_prop_unk = alpha_prop,
+                                                            alpha_prop_unk = alpha_prop, ## loss for unknown prop is 0 in initialization
                                                             beta_kl_slack = beta_kl_slack,
                                                             beta_kl_rot = beta_kl_rot,
                                                             beta_kl_prop = beta_kl_prop,
+                                                            beta_kl_drug = beta_kl_drug,
                                                             activ = activ,
                                                             optim = optim)
 
     X_unkp = np.asarray(X_unkp).astype('float32')
     y_unkp = np.asarray(y_unkp).astype('float32')
     label_unkp = np.asarray(label_unkp).astype('float32')
+    drug_unkp = np.asarray(drug_unkp).astype('float32')
     X_kp = np.asarray(X_kp).astype('float32')
     y_kp = np.asarray(y_kp).astype('float32')
     label_kp = np.asarray(label_kp).astype('float32')
+    drug_kp = np.asarray(drug_kp).astype('float32')
 
-    loss_history = diva.fit_model(known_prop_vae, 
-                                    unknown_prop_vae,
-                                    X_unkp,
-                                    y_unkp,
-                                    label_unkp,
+    # loss_history = diva.fit_model(known_prop_vae, 
+    #                                 unknown_prop_vae,
+    #                                 X_unkp,
+    #                                 y_unkp,
+    #                                 label_unkp,
+    #                                 drug_unkp,
+    #                                 X_kp, 
+    #                                 y_kp,
+    #                                 label_kp, 
+    #                                 drug_kp, 
+    #                                 epochs=n_epoch,
+    #                                 batch_size=batch_size)
+
+
+
+    loss_history = diva.fit_model_supervised(known_prop_vae, 
                                     X_kp, 
                                     y_kp,
                                     label_kp, 
+                                    drug_kp, 
                                     epochs=n_epoch,
                                     batch_size=batch_size)
-
 
     ##################################################
     #####. Train Model second pass
@@ -262,42 +289,46 @@ if __name__ == "__main__":
     idx_second_run = idx_unlab
     X_unkp = X_full[idx_second_run,]
     label_unkp = label_full[idx_second_run,]
-
-    z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot = encoder.predict(X_unkp, batch_size=batch_size)
+    drug_unkp = drug_full[idx_second_run,]
+    z_slack, mu_slack, l_sigma_slack, mu_prop, l_sigma_prop, prop_outputs, z_rot, mu_rot, l_sigma_rot, z_drug, mu_drug, l_sigma_drug = encoder.predict(X_unkp, batch_size=batch_size)
     y_unkp_rand = prop_outputs
 
     X_kp = X_full[idx_train,]
     label_kp = label_full[idx_train,]
+    drug_kp = drug_full[idx_train,]
     y_kp = Y_full[idx_train,]
 
 
 
-    known_prop_vae, unknown_prop_vae, encoder, decoder = diva.instantiate_model(n_x=n_x,
-                                                            n_y=n_y,
-                                                            n_label=n_label,
-                                                            n_z=n_z,
-                                                            decoder_out_dim = decoder_out_dim,
-                                                            n_label_z = n_label_z,
-                                                            encoder_dim = encoder_dim,
-                                                            decoder_dim = decoder_dim,
-                                                            batch_size = batch_size,
-                                                            n_epoch = n_epoch,
-                                                            alpha_rot = alpha_rot,
-                                                            alpha_prop = alpha_prop,
-                                                            alpha_prop_unk = alpha_prop*0.1,
-                                                            beta_kl_slack = beta_kl_slack,
-                                                            beta_kl_rot = beta_kl_rot,
-                                                            beta_kl_prop = beta_kl_prop,
-                                                            activ = activ,
-                                                            optim = optim)
+    # known_prop_vae, unknown_prop_vae, encoder, decoder = diva.instantiate_model(n_x=n_x,
+    #                                                         n_y=n_y,
+    #                                                         n_label=n_label,
+    #                                                         n_drugs=n_drugs,
+    #                                                         n_z=n_z,
+    #                                                         decoder_out_dim = decoder_out_dim,
+    #                                                         n_label_z = n_label_z,
+    #                                                         encoder_dim = encoder_dim,
+    #                                                         decoder_dim = decoder_dim,
+    #                                                         batch_size = batch_size,
+    #                                                         n_epoch = n_epoch,
+    #                                                         alpha_rot = alpha_rot,
+    #                                                         alpha_prop = alpha_prop,
+    #                                                         alpha_prop_unk = alpha_prop*0.1,
+    #                                                         beta_kl_slack = beta_kl_slack,
+    #                                                         beta_kl_rot = beta_kl_rot,
+    #                                                         beta_kl_prop = beta_kl_prop,
+    #                                                         activ = activ,
+    #                                                         optim = optim)
 
 
     X_unkp = np.asarray(X_unkp).astype('float32')
     y_unkp_rand = np.asarray(y_unkp_rand).astype('float32')
     label_unkp = np.asarray(label_unkp).astype('float32')
+    drug_unkp = np.asarray(drug_unkp).astype('float32')
     X_kp = np.asarray(X_kp).astype('float32')
     y_kp = np.asarray(y_kp).astype('float32')
     label_kp = np.asarray(label_kp).astype('float32')
+    drug_kp = np.asarray(drug_kp).astype('float32')
 
 
     loss_history = diva.fit_model(known_prop_vae, 
@@ -305,9 +336,11 @@ if __name__ == "__main__":
                                     X_unkp,
                                     y_unkp_rand,
                                     label_unkp,
+                                    drug_unkp,
                                     X_kp, 
                                     y_kp,
                                     label_kp, 
+                                    drug_kp, 
                                     epochs=n_epoch,
                                     batch_size=batch_size)
 
@@ -316,20 +349,23 @@ if __name__ == "__main__":
     encoder.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_encoder")
     decoder.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_decoder")
 
+
     # write out the loss for later plotting
     # unpack the loss values
     labeled_total_loss = [item[0] for item in loss_history]
-    unlabeled_total_loss = [item[4][0] for item in loss_history]
+    unlabeled_total_loss = [item[5][0] for item in loss_history]
 
     labeled_recon_loss = [item[1] for item in loss_history]
-    unlabeled_recon_loss = [item[4][1] for item in loss_history]
+    unlabeled_recon_loss = [item[5][1] for item in loss_history]
 
     labeled_prop_loss = [item[2] for item in loss_history]
-    unlabeled_prop_loss = [item[4][2] for item in loss_history]
-
+    unlabeled_prop_loss = [item[5][2] for item in loss_history]
 
     labeled_samp_loss = [item[3] for item in loss_history]
-    unlabeled_samp_loss = [item[4][3] for item in loss_history]
+    unlabeled_samp_loss = [item[5][3] for item in loss_history]
+
+    labeled_drug_loss = [item[4] for item in loss_history]
+    unlabeled_drug_loss = [item[5][4] for item in loss_history]
 
 
     # make into a dataframe
@@ -346,6 +382,9 @@ if __name__ == "__main__":
 
     samp_loss = labeled_samp_loss + unlabeled_samp_loss + [a + b for a, b in zip(labeled_samp_loss, unlabeled_samp_loss)]
     loss_df['samp_loss'] = samp_loss
+
+    drug_loss = labeled_drug_loss + unlabeled_drug_loss + [a + b for a, b in zip(labeled_drug_loss, unlabeled_drug_loss)]
+    loss_df['drug_loss'] = drug_loss
 
     loss_file = os.path.join(args.res_data_path, f"train-{args.exp_id}-{args.unlab_exp_id}-DIVA_loss.pkl")
     loss_df.to_pickle(loss_file)

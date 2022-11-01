@@ -40,7 +40,8 @@ from pathlib import Path
 from tensorflow.python.framework.ops import disable_eager_execution
 disable_eager_execution()
 
-def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop, Y_unknown_prop,
+#def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop, Y_unknown_prop,
+def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop,
               label_unknown_prop, X_known_prop, Y_known_prop, 
               label_known_prop, epochs, batch_size):
     assert len(X_known_prop) % len(X_unknown_prop) == 0, \
@@ -76,7 +77,8 @@ def fit_model(known_prop_vae, unknown_prop_vae, X_unknown_prop, Y_unknown_prop,
             #y_shuffle[:,0] = 1
             index_range =  unlabeled_index[i * batch_size:(i+1) * batch_size]
             loss += [unknown_prop_vae.train_on_batch(X_unknown_prop[index_range], 
-                                                        [X_unknown_prop[index_range], Y_unknown_prop[index_range], label_unknown_prop[index_range]])]
+                                                        [X_unknown_prop[index_range], label_unknown_prop[index_range]])]
+                                                        #[X_unknown_prop[index_range], Y_unknown_prop[index_range], label_unknown_prop[index_range], drug_unknown_prop[index_range]])]
             
             history.append(loss)
             
@@ -171,7 +173,7 @@ def instantiate_model(n_x,
     mu_rot = Dense(n_label_z, activation='linear', name = "mu_rot")(encoder_r)
     l_sigma_rot = Dense(n_label_z, activation='linear', name = "sigma_rot")(encoder_r)
     
-
+ 
     # sampler from mu and sigma
     def sample_z(args):
         mu, l_sigma, n_z = args
@@ -230,6 +232,8 @@ def instantiate_model(n_x,
     sigma_outputs_r = decoder_sigma_r(l_sigma_rot)
 
 
+
+
     ###### Loss functions where you need access to internal variables
     def vae_loss(y_true, y_pred):
         recon = K.sum(mean_squared_error(y_true, y_pred), axis=-1)
@@ -237,6 +241,11 @@ def instantiate_model(n_x,
         kl_rot = beta_kl_rot * K.sum(K.exp(l_sigma_rot) + K.square(mu_rot) - 1. - l_sigma_rot, axis=-1)
         kl_slack = beta_kl_slack * K.sum(K.exp(l_sigma_slack) + K.square(mu_slack) - 1. - l_sigma_slack, axis=-1)
         return recon + kl_prop + kl_rot + kl_slack
+    def vae_loss_unk(y_true, y_pred):
+        recon = K.sum(mean_squared_error(y_true, y_pred), axis=-1)
+        kl_rot = beta_kl_rot * K.sum(K.exp(l_sigma_rot) + K.square(mu_rot) - 1. - l_sigma_rot, axis=-1)
+        kl_slack = beta_kl_slack * K.sum(K.exp(l_sigma_slack) + K.square(mu_slack) - 1. - l_sigma_slack, axis=-1)
+        return recon + kl_rot + kl_slack
 
     def prop_loss_unknown(y_true, y_pred):
       return K.sum(mean_absolute_error(y_true, y_pred), axis=-1) * alpha_prop_unk ###
@@ -250,11 +259,13 @@ def instantiate_model(n_x,
 
     ##### link it all together
     known_prop_vae = Model(X, [outputs, prop_outputs, rotation_outputs, sigma_outputs_p])
-    unknown_prop_vae = Model(X, [outputs, prop_outputs, rotation_outputs])
+    #unknown_prop_vae = Model(X, [outputs, prop_outputs, rotation_outputs, drug_outputs])
+    unknown_prop_vae = Model(X, [outputs, rotation_outputs])
 
     known_prop_vae.compile(optimizer=optim, loss=[vae_loss, prop_loss, class_loss, None])
 
-    unknown_prop_vae.compile(optimizer=optim, loss=[vae_loss, prop_loss_unknown, class_loss])
+    #unknown_prop_vae.compile(optimizer=optim, loss=[vae_loss, prop_loss_unknown, class_loss, drug_loss])
+    unknown_prop_vae.compile(optimizer=optim, loss=[vae_loss_unk, class_loss])
 
 
 
