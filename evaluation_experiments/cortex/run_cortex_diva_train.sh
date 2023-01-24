@@ -11,7 +11,7 @@ py_script="python cortex_diva_train.py -res ${res_path} -aug ${aug_data_path} -n
 # now run this for all out experimental desires
 
 exp_id="cortex6k"
-unlab_exp_id="cortex6k"
+unlab_exp_id="cortex6k_200epoch_decLR"
 lsf_file=${res_path}/${exp_id}_${unlab_exp_id}_diva_train.lsf
 bsub -R "rusage[mem=45GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${exp_id} ${py_script} -exp ${exp_id} -unlab_exp ${unlab_exp_id}
 

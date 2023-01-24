@@ -58,7 +58,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    f = open("got_to_line_58.txt", "w")
+    
     ##################################################
     #####. set up experiment specific variables
     ##################################################
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     ##################################################
 
     batch_size = 500
-    n_epoch = 100 # 100 
+    n_epoch = 200 # 100 
 
     alpha_rot = 1000000
     alpha_prop = 100
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     decoder_out_dim = n_x # dim of decoder output layer
 
     activ = 'relu'
-    optim = Adam(learning_rate=0.001)
+    optim = Adam(learning_rate=0.0005)
 
     print(f"length of X {n_x} and length of y {n_y} n_label {n_label}") #and n_drugs {n_drugs}")
     ##################################################
@@ -334,15 +334,14 @@ if __name__ == "__main__":
                                     X_kp, 
                                     y_kp,
                                     label_kp, 
-                                    n_epoch,      #deleted epochs = n_epochs, got error about too many epoch args
+                                    n_epoch,      #deleted epochs = n_epochs
                                     batch_size)
-    f = open("got_to_line_339.txt", "w")
 
     known_prop_vae.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_known_prop_vae")
     unknown_prop_vae.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_unknown_prop_vae")
     encoder.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_encoder")
     decoder.save(f"{args.res_data_path}/{args.exp_id}_{args.unlab_exp_id}_decoder")
-    print(f"loss history is {loss_history}")
+
     # write out the loss for later plotting
     # unpack the loss values
     labeled_total_loss = [item[0] for item in loss_history]
@@ -352,12 +351,13 @@ if __name__ == "__main__":
     unlabeled_recon_loss = [item[4][1] for item in loss_history]
 
     labeled_prop_loss = [item[2] for item in loss_history]
-    unlabeled_prop_loss = [item[4][2] for item in loss_history]
+    #unlabeled_prop_loss = [item[4][2] for item in loss_history]
 
     labeled_samp_loss = [item[3] for item in loss_history]
-    unlabeled_samp_loss = [item[4][3] for item in loss_history]
+    unlabeled_samp_loss = [item[4][2] for item in loss_history]
     
     #changed numbers from 5>to 4 above to match index
+
     #labeled_drug_loss = [item[4] for item in loss_history]
     #unlabeled_drug_loss = [item[5][4] for item in loss_history]
 
@@ -370,7 +370,11 @@ if __name__ == "__main__":
     recon_loss = labeled_recon_loss + unlabeled_recon_loss + [a + b for a, b in zip(labeled_recon_loss, unlabeled_recon_loss)]
     loss_df['recon_loss'] = recon_loss
 
-    prop_loss = labeled_prop_loss + unlabeled_prop_loss + [a + b for a, b in zip(labeled_prop_loss, unlabeled_prop_loss)]
+    
+    prop_loss = labeled_prop_loss + [a for a in zip(labeled_prop_loss)]
+    #prop_loss = labeled_prop_loss + unlabeled_prop_loss + [a + b for a, b in zip(labeled_prop_loss, unlabeled_prop_loss)]
+    #prop_loss = prop_loss.to_frame()
+    prop_loss = pd.Series(prop_loss)
     loss_df['prop_loss'] = prop_loss
 
     samp_loss = labeled_samp_loss + unlabeled_samp_loss + [a + b for a, b in zip(labeled_samp_loss, unlabeled_samp_loss)]
@@ -385,4 +389,7 @@ if __name__ == "__main__":
     # write out the features for testing
     gene_file = os.path.join(args.res_data_path, f"train-{args.exp_id}-{args.unlab_exp_id}-DIVA_features.pkl")
     gene_df.to_pickle(gene_file)
+
     f = open("finished_file.txt", "w")
+
+    loss_history

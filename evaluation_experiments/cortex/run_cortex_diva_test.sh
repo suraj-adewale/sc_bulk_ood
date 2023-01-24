@@ -13,7 +13,7 @@ py_script="python cortex_diva_test.py -res ${res_path} -aug ${aug_data_path}"
 # just noise
 train_id="cortex6k"
 test_id="cortex6k"
-unlab_exp_id="cortex6k"
+unlab_exp_id="cortex6k_200epoch_decLR"
 curr_py_script="${py_script} -train ${train_id} -test ${test_id} -unlab_exp ${unlab_exp_id}"
 lsf_file=${res_path}/train-${train_id}-test-${test_id}-unlab-${unlab_exp_id}.lsf
 bsub -R "rusage[mem=10GB]" -W 4:00 -n 1 -q "normal" -o ${lsf_file} -J ${train_id} ${curr_py_script}
