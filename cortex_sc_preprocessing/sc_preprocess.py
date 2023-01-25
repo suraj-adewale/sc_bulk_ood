@@ -1,3 +1,5 @@
+
+
 #!/usr/bin/env python
 
 # general imports
@@ -160,19 +162,19 @@ def read_diva_files(data_path, file_idx, file_name, use_test=False):
      
 
     if file_idx is not None:
-      pbmc_rep1_pseudobulk_file = os.path.join(data_path, f"{file_name}_{pseudo_str}_{file_idx}.pkl")
-      pbmc_rep1_prop_file = os.path.join(data_path, f"{file_name}_{prop_str}_{file_idx}.pkl")
+      cortex_rep1_pseudobulk_file = os.path.join(data_path, f"{file_name}_{pseudo_str}_{file_idx}.pkl")
+      cortex_rep1_prop_file = os.path.join(data_path, f"{file_name}_{prop_str}_{file_idx}.pkl")
     else:
-      pbmc_rep1_pseudobulk_file = os.path.join(data_path, f"{file_name}_pseudo.pkl")
-      pbmc_rep1_prop_file = os.path.join(data_path, f"{file_name}_prop.pkl")
+      cortex_rep1_pseudobulk_file = os.path.join(data_path, f"{file_name}_pseudo.pkl")
+      cortex_rep1_prop_file = os.path.join(data_path, f"{file_name}_prop.pkl")
 
-    pbmc_rep1_gene_file = os.path.join(data_path, f"{file_name}_genes.pkl")
-    pbmc_rep1_sig_file = os.path.join(data_path, f"{file_name}_sig.pkl")
+    cortex_rep1_gene_file = os.path.join(data_path, f"{file_name}_genes.pkl")
+    cortex_rep1_sig_file = os.path.join(data_path, f"{file_name}_sig.pkl")
 
-    pseudobulk_path = Path(pbmc_rep1_pseudobulk_file)
-    prop_path = Path(pbmc_rep1_prop_file)
-    gene_path = Path(pbmc_rep1_gene_file)
-    sig_path = Path(pbmc_rep1_sig_file)
+    pseudobulk_path = Path(cortex_rep1_pseudobulk_file)
+    prop_path = Path(cortex_rep1_prop_file)
+    gene_path = Path(cortex_rep1_gene_file)
+    sig_path = Path(cortex_rep1_sig_file)
 
     prop_df = pickle.load( open( prop_path, "rb" ) )
     pseudobulks_df = pickle.load( open( pseudobulk_path, "rb" ) )
@@ -194,20 +196,21 @@ def read_all_diva_files(data_path, idx_range, file_name):
         else:
             X_concat = pd.concat([X_concat, X_train])
             Y_concat = pd.concat([Y_concat, Y_train])
-
+            
+      
     return (X_concat, Y_concat, gene_df)
 
 
-def write_cs_bp_files(cybersort_path, out_file_id, pbmc1_a_df, X_train, patient_idx=0):
+def write_cs_bp_files(cybersort_path, out_file_id, cortex_a_df, X_train, patient_idx=0):
     # write out the scRNA-seq signature matrix
     sig_out_file = os.path.join(cybersort_path, f"{out_file_id}_{patient_idx}_cybersort_sig.tsv.gz")
     sig_out_path = Path(sig_out_file)
-    pbmc1_a_df = pbmc1_a_df.transpose()
+    cortex_a_df = cortex_a_df.transpose()
 
     # cast from matrix to pd
-    pbmc1_a_df = pd.DataFrame(pbmc1_a_df)
+    cortex_a_df = pd.DataFrame(cortex_a_df)
 
-    pbmc1_a_df.to_csv(sig_out_path, sep='\t',header=False)
+    cortex_a_df.to_csv(sig_out_path, sep='\t',header=False)
 
     # write out the bulk RNA-seq mixture matrix
     sig_out_file = os.path.join(cybersort_path, f"{out_file_id}_{patient_idx}_cybersort_mix.tsv.gz")
